@@ -1,4 +1,4 @@
-import { colorMap, findClosestColor, findClosestColorFromRgb, getPaletteColors, hexToRgb } from '../data/perlerColors'
+import { colorMap, findClosestColor, findClosestColorFromRgb, getPaletteColors } from '../data/perlerColors'
 
 function createOffscreenCanvas(width, height) {
   const canvas = document.createElement('canvas')
@@ -17,10 +17,6 @@ function rgbToHex(r, g, b) {
     const hex = x.toString(16)
     return hex.length === 1 ? '0' + hex : hex
   }).join('')
-}
-
-function clampChannel(value) {
-  return Math.max(0, Math.min(255, value))
 }
 
 function extractOpaquePixels(imageData) {
@@ -154,218 +150,30 @@ function findClosestRgb(target, palette) {
   return closest
 }
 
-function applyError(working, x, y, width, height, err, factor) {
-  if (x < 0 || y < 0 || x >= width || y >= height) return
-  const idx = (y * width + x) * 3
-  working[idx] += err.r * factor
-  working[idx + 1] += err.g * factor
-  working[idx + 2] += err.b * factor
-}
-
-function orderedDitherThreshold(x, y) {
-  const matrix = [
-    [0, 8, 2, 10],
-    [12, 4, 14, 6],
-    [3, 11, 1, 9],
-    [15, 7, 13, 5]
-  ]
-  return matrix[y % 4][x % 4] / 16 - 0.5
-}
-
 function processPixelMode(imageData, width, height, options) {
-  const {
-    paletteColors,
-    quantizationAlgorithm,
-    maxColors,
-    ditherAlgorithm,
-    distanceMethod
-  } = options
+  const { paletteColors, distanceMethod, maxColors } = options
 
   const opaquePixels = extractOpaquePixels(imageData)
-  const quantPalette = buildQuantizationPalette(opaquePixels, quantizationAlgorithm, maxColors)
+  const finalMaxColors = Math.max(1, Math.min(maxColors || paletteColors.length, paletteColors.length))
+  const quantPalette = buildQuantizationPalette(opaquePixels, 'median-cut', finalMaxColors)
   const data = imageData.data
   const pixels = new Array(width * height).fill(null)
-
-  if (ditherAlgorithm === 'none' || ditherAlgorithm === 'ordered') {
-    for (let i = 0; i < data.length; i += 4) {
-      const idx = i / 4
-      const a = data[i + 3]
-      if (a < 128) {
-        pixels[idx] = null
-        continue
-      }
-
-      const x = idx % width
-      const y = Math.floor(idx / width)
-      let rgb = { r: data[i], g: data[i + 1], b: data[i + 2] }
-
-      if (ditherAlgorithm === 'ordered') {
-        const delta = orderedDitherThreshold(x, y) * 28
-        rgb = {
-          r: clampChannel(rgb.r + delta),
-          g: clampChannel(rgb.g + delta),
-          b: clampChannel(rgb.b + delta)
-        }
-      }
-
-      const quantized = quantPalette ? findClosestRgb(rgb, quantPalette) : rgb
-      const closestColor = findClosestColorFromRgb(quantized, paletteColors, distanceMethod)
-      pixels[idx] = closestColor.id
-    }
-    return pixels
-  }
-
-  const working = new Float32Array(width * height * 3)
-  for (let i = 0; i < data.length; i += 4) {
-    const base = (i / 4) * 3
-    working[base] = data[i]
-    working[base + 1] = data[i + 1]
-    working[base + 2] = data[i + 2]
-  }
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = y * width + x
-      const i = idx * 4
-      if (data[i + 3] < 128) {
-        pixels[idx] = null
-        continue
-      }
-
-      const base = idx * 3
-      const current = {
-        r: clampChannel(working[base]),
-        g: clampChannel(working[base + 1]),
-        b: clampChannel(working[base + 2])
-      }
-
-      const quantized = quantPalette ? findClosestRgb(current, quantPalette) : current
-      const closestColor = findClosestColorFromRgb(quantized, paletteColors, distanceMethod)
-      const mappedRgb = hexToRgb(closestColor.hex)
-      pixels[idx] = closestColor.id
-
-      const err = {
-        r: quantized.r - mappedRgb.r,
-        g: quantized.g - mappedRgb.g,
-        b: quantized.b - mappedRgb.b
-      }
-
-      if (ditherAlgorithm === 'atkinson') {
-        const factor = 1 / 8
-        applyError(working, x + 1, y, width, height, err, factor)
-        applyError(working, x + 2, y, width, height, err, factor)
-        applyError(working, x - 1, y + 1, width, height, err, factor)
-        applyError(working, x, y + 1, width, height, err, factor)
-        applyError(working, x + 1, y + 1, width, height, err, factor)
-        applyError(working, x, y + 2, width, height, err, factor)
-      } else {
-        applyError(working, x + 1, y, width, height, err, 7 / 16)
-        applyError(working, x - 1, y + 1, width, height, err, 3 / 16)
-        applyError(working, x, y + 1, width, height, err, 5 / 16)
-        applyError(working, x + 1, y + 1, width, height, err, 1 / 16)
-      }
-    }
-  }
-
-  return pixels
-}
-
-function processEdgeMode(imageData, width, height, paletteColors, distanceMethod) {
-  const data = imageData.data
-  const pixels = []
-  const gray = new Uint8Array(width * height)
-
-  for (let i = 0; i < data.length; i += 4) {
-    gray[i / 4] = Math.floor(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])
-  }
-
-  const edges = new Uint8Array(width * height)
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) {
-      const idx = y * width + x
-      const gx =
-        -gray[(y - 1) * width + (x - 1)] + gray[(y - 1) * width + (x + 1)] +
-        -2 * gray[y * width + (x - 1)] + 2 * gray[y * width + (x + 1)] +
-        -gray[(y + 1) * width + (x - 1)] + gray[(y + 1) * width + (x + 1)]
-      const gy =
-        -gray[(y - 1) * width + (x - 1)] - 2 * gray[(y - 1) * width + x] - gray[(y - 1) * width + (x + 1)] +
-        gray[(y + 1) * width + (x - 1)] + 2 * gray[(y + 1) * width + x] + gray[(y + 1) * width + (x + 1)]
-      edges[idx] = Math.min(255, Math.sqrt(gx * gx + gy * gy))
-    }
-  }
-
-  const basicColors = [
-    { r: 255, g: 255, b: 255 },
-    { r: 0, g: 0, b: 0 },
-    { r: 230, g: 0, b: 18 },
-    { r: 30, g: 144, b: 255 },
-    { r: 34, g: 139, b: 34 },
-    { r: 255, g: 215, b: 0 },
-    { r: 255, g: 140, b: 0 },
-    { r: 128, g: 0, b: 128 },
-    { r: 139, g: 69, b: 19 },
-    { r: 128, g: 128, b: 128 }
-  ]
 
   for (let i = 0; i < data.length; i += 4) {
     const idx = i / 4
     const a = data[i + 3]
     if (a < 128) {
-      pixels.push(null)
+      pixels[idx] = null
       continue
     }
 
-    const r = data[i]
-    const g = data[i + 1]
-    const b = data[i + 2]
-    const isEdge = edges[idx] > 50
-    const source = isEdge
-      ? { r: clampChannel(r - 50), g: clampChannel(g - 50), b: clampChannel(b - 50) }
-      : findClosestRgb({ r, g, b }, basicColors)
+    const rgb = { r: data[i], g: data[i + 1], b: data[i + 2] }
 
-    pixels.push(findClosestColorFromRgb(source, paletteColors, distanceMethod).id)
+    const quantized = quantPalette ? findClosestRgb(rgb, quantPalette) : rgb
+    const closestColor = findClosestColorFromRgb(quantized, paletteColors, distanceMethod)
+    pixels[idx] = closestColor.id
   }
-
   return pixels
-}
-
-function applyLowFrequencyReplacement(pixels, thresholdPercent, distanceMethod, paletteMap) {
-  if (!thresholdPercent || thresholdPercent <= 0) return pixels
-
-  const counts = new Map()
-  let total = 0
-  for (const id of pixels) {
-    if (!id) continue
-    counts.set(id, (counts.get(id) || 0) + 1)
-    total++
-  }
-  if (total === 0) return pixels
-
-  const minCount = Math.ceil((total * thresholdPercent) / 100)
-  if (minCount <= 1) return pixels
-
-  const rare = new Set()
-  const frequent = []
-  for (const [id, count] of counts.entries()) {
-    if (count < minCount) rare.add(id)
-    else frequent.push(id)
-  }
-  if (rare.size === 0 || frequent.length === 0) return pixels
-
-  const replacement = new Map()
-  rare.forEach(id => {
-    const source = paletteMap.get(id)
-    if (!source) return
-    const sourceRgb = hexToRgb(source.hex)
-    const target = findClosestColorFromRgb(
-      sourceRgb,
-      frequent.map(fid => paletteMap.get(fid)).filter(Boolean),
-      distanceMethod
-    )
-    replacement.set(id, target.id)
-  })
-
-  return pixels.map(id => replacement.get(id) || id)
 }
 
 export async function resizeImageToPattern(imageUrl, targetWidth, targetHeight, transform = {}) {
@@ -373,16 +181,10 @@ export async function resizeImageToPattern(imageUrl, targetWidth, targetHeight, 
     x = 0,
     y = 0,
     scale = 1,
-    mode = 'pixel',
     containerWidth = 400,
     containerHeight = 400,
     paletteBrand = 'perler',
-    maxColors = 24,
-    quantizationAlgorithm = 'median-cut',
-    ditherAlgorithm = 'none',
-    distanceMethod = 'euclidean',
-    lowFrequencyThreshold = 0,
-    customPalette = null
+    maxColors = 24
   } = transform
 
   return new Promise((resolve, reject) => {
@@ -412,33 +214,15 @@ export async function resizeImageToPattern(imageUrl, targetWidth, targetHeight, 
       ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
 
       const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight)
-      const paletteColors = (paletteBrand === 'custom' && customPalette?.length)
-        ? customPalette
-        : getPaletteColors(paletteBrand)
-      const paletteMap = buildPaletteMap(paletteColors)
-      let pixels
-
-      if (mode === 'edge') {
-        pixels = processEdgeMode(imageData, targetWidth, targetHeight, paletteColors, distanceMethod)
-      } else {
-        pixels = processPixelMode(imageData, targetWidth, targetHeight, {
-          paletteColors,
-          quantizationAlgorithm,
-          maxColors,
-          ditherAlgorithm,
-          distanceMethod
-        })
-      }
-
-      const normalized = applyLowFrequencyReplacement(
-        pixels,
-        lowFrequencyThreshold,
-        distanceMethod,
-        paletteMap
-      )
+      const paletteColors = getPaletteColors(paletteBrand)
+      const pixels = processPixelMode(imageData, targetWidth, targetHeight, {
+        paletteColors,
+        distanceMethod: 'euclidean',
+        maxColors
+      })
 
       resolve({
-        pixels: normalized,
+        pixels,
         width: targetWidth,
         height: targetHeight,
         paletteColors

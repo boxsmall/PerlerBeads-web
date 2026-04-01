@@ -3,12 +3,12 @@ import { findClosestColor } from './perlerColors'
 
 describe('findClosestColor', () => {
   it('returns the same color for an exact palette hex', () => {
-    const result = findClosestColor('#1E90FF')
-    expect(result.id).toBe('blue')
+    const result = findClosestColor('#F8F8F8')
+    expect(result.id).toBe('perler-white')
   })
 
   it('maps a near-red hex to red family', () => {
     const result = findClosestColor('#E70010')
-    expect(['red', 'dark-red', 'cherry-red', 'orange-red']).toContain(result.id)
+    expect(['perler-red', 'perler-fruit-punch', 'perler-hot-coral', 'perler-tomato']).toContain(result.id)
   })
 })

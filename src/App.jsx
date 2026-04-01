@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { resizeImageToPattern, exportAsImage, getUsedColors } from './utils/imageProcessor'
 import { colorMap, getPaletteColors, paletteBrands } from './data/perlerColors'
-import { parsePaletteText, serializePalette } from './utils/paletteIO'
 import './App.css'
 
 function App() {
@@ -18,15 +17,7 @@ function App() {
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
 
-  // 模式选择：pixel-像素模式, edge-轮廓模式
-  const [processMode, setProcessMode] = useState('pixel')
   const [paletteBrand, setPaletteBrand] = useState('perler')
-  const [maxColors, setMaxColors] = useState(24)
-  const [ditherAlgorithm, setDitherAlgorithm] = useState('none')
-  const [distanceMethod, setDistanceMethod] = useState('euclidean')
-  const [quantizationAlgorithm, setQuantizationAlgorithm] = useState('median-cut')
-  const [lowFrequencyThreshold, setLowFrequencyThreshold] = useState(0)
-  const [customPaletteColors, setCustomPaletteColors] = useState([])
 
   // 批量编辑相关状态
   const [isSelecting, setIsSelecting] = useState(false)
@@ -42,7 +33,6 @@ function App() {
   const [containerSize, setContainerSize] = useState({ width: 400, height: 400 })
   const [imageNaturalSize, setImageNaturalSize] = useState(null)
   const imageContainerRef = useRef(null)
-  const paletteFileInputRef = useRef(null)
 
   // 处理图片上传
   const handleImageUpload = (e) => {
@@ -154,10 +144,6 @@ function App() {
   // 生成图案
   const handleGenerate = async () => {
     if (!originalImage) return
-    if (paletteBrand === 'custom' && customPaletteColors.length === 0) {
-      setError('请先导入自定义调色板')
-      return
-    }
 
     setIsProcessing(true)
     setError(null)
@@ -171,14 +157,8 @@ function App() {
         x: imagePos.x,
         y: imagePos.y,
         scale: imageScale,
-        mode: processMode,
         paletteBrand,
-        maxColors,
-        ditherAlgorithm,
-        distanceMethod,
-        quantizationAlgorithm,
-        lowFrequencyThreshold,
-        customPalette: customPaletteColors,
+        maxColors: getPaletteColors(paletteBrand).length,
         containerWidth: containerSize.width,
         containerHeight: containerSize.height
       })
@@ -443,42 +423,6 @@ function App() {
     setImageScale(1)
   }
 
-  const handleImportPalette = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const text = String(event.target?.result || '')
-      const parsed = parsePaletteText(text)
-      if (parsed.length === 0) {
-        setError('调色板格式无效，请使用 #HEX,名称 的每行格式')
-        return
-      }
-      setCustomPaletteColors(parsed)
-      setPaletteBrand('custom')
-      setError(null)
-    }
-    reader.readAsText(file, 'utf-8')
-    e.target.value = ''
-  }
-
-  const handleExportPalette = () => {
-    const source = (paletteBrand === 'custom' && customPaletteColors.length > 0)
-      ? customPaletteColors
-      : getPaletteColors(paletteBrand)
-    if (!source.length) return
-
-    const content = serializePalette(source)
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `palette-${paletteBrand}.txt`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
   const fitScale = imageNaturalSize
     ? Math.min(
       containerSize.width / imageNaturalSize.width,
@@ -487,13 +431,15 @@ function App() {
     : 1
   const basePreviewWidth = imageNaturalSize ? imageNaturalSize.width * fitScale : containerSize.width
   const basePreviewHeight = imageNaturalSize ? imageNaturalSize.height * fitScale : containerSize.height
-  const activePaletteColors = (paletteBrand === 'custom' && customPaletteColors.length > 0)
-    ? customPaletteColors
-    : getPaletteColors(paletteBrand)
+  const activePaletteColors = getPaletteColors(paletteBrand)
+  const paletteColorCount = activePaletteColors.length
   const patternPaletteMap = new Map([
     ...colorMap.entries(),
     ...((pattern?.paletteColors || []).map(c => [c.id, c]))
   ])
+  const BOARD_SIZE = 520
+  const cellSize = pattern ? Math.max(6, Math.floor(BOARD_SIZE / Math.max(pattern.width, pattern.height))) : 16
+  const boardStyle = pattern ? { '--cell-size': `${cellSize}px` } : undefined
 
   return (
     <div className="app">
@@ -622,40 +568,12 @@ function App() {
               )}
 
               <div className="mode-control">
-                <label>处理模式：</label>
-                <select value={processMode} onChange={(e) => setProcessMode(e.target.value)}>
-                  <option value="pixel">像素模式（清晰）</option>
-                  <option value="edge">轮廓模式（简化）</option>
-                </select>
-              </div>
-
-              <div className="mode-control">
                 <label>调色板品牌：</label>
                 <select value={paletteBrand} onChange={(e) => setPaletteBrand(e.target.value)}>
                   {paletteBrands.map((brand) => (
                     <option key={brand.id} value={brand.id}>{brand.name}</option>
                   ))}
-                  <option value="custom">Custom</option>
                 </select>
-              </div>
-
-              <div className="mode-control">
-                <label>调色板文件：</label>
-                <div className="palette-actions">
-                  <button type="button" onClick={() => paletteFileInputRef.current?.click()}>
-                    导入 txt/csv
-                  </button>
-                  <button type="button" onClick={handleExportPalette}>
-                    导出当前调色板
-                  </button>
-                </div>
-                <input
-                  ref={paletteFileInputRef}
-                  type="file"
-                  accept=".txt,.csv,text/plain"
-                  hidden
-                  onChange={handleImportPalette}
-                />
               </div>
 
               <div className="mode-control">
@@ -663,48 +581,9 @@ function App() {
                 <input
                   type="number"
                   min="2"
-                  max="64"
-                  value={maxColors}
-                  onChange={(e) => setMaxColors(Math.max(2, Math.min(64, Number(e.target.value) || 2)))}
-                />
-              </div>
-
-              <div className="mode-control">
-                <label>量化算法：</label>
-                <select value={quantizationAlgorithm} onChange={(e) => setQuantizationAlgorithm(e.target.value)}>
-                  <option value="none">无</option>
-                  <option value="median-cut">Median Cut</option>
-                  <option value="kmeans">K-Means</option>
-                </select>
-              </div>
-
-              <div className="mode-control">
-                <label>抖动算法：</label>
-                <select value={ditherAlgorithm} onChange={(e) => setDitherAlgorithm(e.target.value)}>
-                  <option value="none">无</option>
-                  <option value="floyd-steinberg">Floyd-Steinberg</option>
-                  <option value="atkinson">Atkinson</option>
-                  <option value="ordered">Ordered</option>
-                </select>
-              </div>
-
-              <div className="mode-control">
-                <label>颜色差异：</label>
-                <select value={distanceMethod} onChange={(e) => setDistanceMethod(e.target.value)}>
-                  <option value="euclidean">Euclidean</option>
-                  <option value="manhattan">Manhattan</option>
-                  <option value="weighted">Weighted RGB</option>
-                </select>
-              </div>
-
-              <div className="mode-control">
-                <label>低频色替换阈值（%）：</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="20"
-                  value={lowFrequencyThreshold}
-                  onChange={(e) => setLowFrequencyThreshold(Math.max(0, Math.min(20, Number(e.target.value) || 0)))}
+                  max={paletteColorCount}
+                  value={paletteColorCount}
+                  readOnly
                 />
               </div>
 
@@ -734,55 +613,74 @@ function App() {
 
             <div className="editor-content">
               <div className="canvas-wrapper">
-                <div
-                  className="pattern-canvas"
-                  style={{
-                    gridTemplateColumns: `repeat(${pattern.width}, 1fr)`
-                  }}
-                  onMouseDown={(e) => {
-                    // 如果按住 Shift，则是单点选择；否则是框选开始
-                    if (e.shiftKey) {
+                <div className="pattern-board" style={boardStyle}>
+                  <div className="board-corner" />
+                  <div
+                    className="column-labels"
+                    style={{ gridTemplateColumns: `repeat(${pattern.width}, var(--cell-size))` }}
+                  >
+                    {Array.from({ length: pattern.width }, (_, i) => (
+                      <div key={`col-${i}`} className="axis-label">{i + 1}</div>
+                    ))}
+                  </div>
+                  <div
+                    className="row-labels"
+                    style={{ gridTemplateRows: `repeat(${pattern.height}, var(--cell-size))` }}
+                  >
+                    {Array.from({ length: pattern.height }, (_, i) => (
+                      <div key={`row-${i}`} className="axis-label">{i + 1}</div>
+                    ))}
+                  </div>
+                  <div
+                    className="pattern-canvas"
+                    style={{
+                      gridTemplateColumns: `repeat(${pattern.width}, var(--cell-size))`,
+                      width: `calc(${pattern.width} * var(--cell-size))`,
+                      height: `calc(${pattern.height} * var(--cell-size))`
+                    }}
+                    onMouseDown={(e) => {
+                      if (e.shiftKey) {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const x = Math.floor((e.clientX - rect.left) / (rect.width / pattern.width))
+                        const y = Math.floor((e.clientY - rect.top) / (rect.height / pattern.height))
+                        const index = y * pattern.width + x
+                        handlePixelClick(index)
+                      } else {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const x = Math.floor((e.clientX - rect.left) / (rect.width / pattern.width))
+                        const y = Math.floor((e.clientY - rect.top) / (rect.height / pattern.height))
+                        const index = y * pattern.width + x
+                        handleSelectionStart(index)
+                      }
+                    }}
+                    onMouseMove={(e) => {
+                      if (!isSelecting) return
                       const rect = e.currentTarget.getBoundingClientRect()
                       const x = Math.floor((e.clientX - rect.left) / (rect.width / pattern.width))
                       const y = Math.floor((e.clientY - rect.top) / (rect.height / pattern.height))
-                      const index = y * pattern.width + x
-                      handlePixelClick(index)
-                    } else {
-                      const rect = e.currentTarget.getBoundingClientRect()
-                      const x = Math.floor((e.clientX - rect.left) / (rect.width / pattern.width))
-                      const y = Math.floor((e.clientY - rect.top) / (rect.height / pattern.height))
-                      const index = y * pattern.width + x
-                      handleSelectionStart(index)
-                    }
-                  }}
-                  onMouseMove={(e) => {
-                    if (!isSelecting) return
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const x = Math.floor((e.clientX - rect.left) / (rect.width / pattern.width))
-                    const y = Math.floor((e.clientY - rect.top) / (rect.height / pattern.height))
-                    // 限制在画布范围内
-                    const clampedX = Math.max(0, Math.min(pattern.width - 1, x))
-                    const clampedY = Math.max(0, Math.min(pattern.height - 1, y))
-                    const index = clampedY * pattern.width + clampedX
-                    handleSelectionMove(index)
-                  }}
-                  onMouseUp={handleSelectionEnd}
-                  onMouseLeave={handleSelectionEnd}
-                >
-                  {pattern.pixels.map((colorId, index) => {
-                    const color = colorId ? patternPaletteMap.get(colorId) : null
-                    const isSelected = selectedPixel === index || selectedPixels.includes(index)
-                    const isInSelectionRange = isSelecting && selectionStart !== null && selectionEnd !== null && isInRange(index)
-                    return (
-                      <div
-                        key={index}
-                        className={`pixel ${isSelected ? 'selected' : ''} ${isInSelectionRange ? 'selecting' : ''}`}
-                        style={{
-                          backgroundColor: color?.hex || '#f0f0f0'
-                        }}
-                      />
-                    )
-                  })}
+                      const clampedX = Math.max(0, Math.min(pattern.width - 1, x))
+                      const clampedY = Math.max(0, Math.min(pattern.height - 1, y))
+                      const index = clampedY * pattern.width + clampedX
+                      handleSelectionMove(index)
+                    }}
+                    onMouseUp={handleSelectionEnd}
+                    onMouseLeave={handleSelectionEnd}
+                  >
+                    {pattern.pixels.map((colorId, index) => {
+                      const color = colorId ? patternPaletteMap.get(colorId) : null
+                      const isSelected = selectedPixel === index || selectedPixels.includes(index)
+                      const isInSelectionRange = isSelecting && selectionStart !== null && selectionEnd !== null && isInRange(index)
+                      return (
+                        <div
+                          key={index}
+                          className={`pixel ${isSelected ? 'selected' : ''} ${isInSelectionRange ? 'selecting' : ''}`}
+                          style={{
+                            backgroundColor: color?.hex || '#f0f0f0'
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
 

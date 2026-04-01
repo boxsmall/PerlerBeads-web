@@ -1,0 +1,92 @@
+#ffa967,Apricot
+#2e2f32,Black
+#8297d9,Blueberry Cream
+#ff8285,Blush
+#4fad42,Bright Green
+#513931,Brown
+#dd669b,Bubblegum
+#d48437,Butterscotch
+#02caad,Caribbean Sea
+#3c4949,Charcoal
+#f1aa0c,Cheddar
+#910a14,Cherry
+#194691,Cobalt
+#403129,Cocoa
+#f08bb3,Cotton Candy
+#803245,Cranapple
+#e0dea9,Creme
+#2b3f87,Dark Blue
+#1c753e,Dark Green
+#4d5156,Dark Grey
+#063841,Dark Spruce
+#43658b,Denim
+#522f42,Eggplant
+#355343,Evergreen
+#f0cdaa,Fawn
+#7b9730,Fern
+#ffb9b9,Flamingo
+#214039,Forest
+#e8c9d1,Frosted Lilac
+#dd075a,Fruit Punch
+#dc44b7,Fuchsia
+#805d49,Gingerbread
+#503b82,Grape
+#8a8d91,Grey
+#b98a33,Honey
+#ff3851,Hot Coral
+#484780,Iris
+#6cbe13,Kiwi Lime
+#00abb2,Lagoon
+#ad98d4,Lavender
+#3370c0,Light Blue
+#815d34,Light Brown
+#56ba9f,Light Green
+#b1b5b2,Light Grey
+#f6b3dd,Light Pink
+#f22a7b,Magenta
+#323755,Midnight
+#b4debd,Mint
+#9cb9c7,Mist
+#7a3b74,Mulberry
+#84873b,Olive
+#ed6120,Orange
+#f0aa93,Orange Cream
+#ef83e8,Orchid
+#067c81,Parrot Green
+#5390d1,Pastel Blue
+#76c882,Pastel Green
+#8a72c1,Pastel Lavender
+#fef875,Pastel Yellow
+#eebab2,Peach
+#a0a5a5,Pewter
+#e44892,Pink
+#a24b9c,Plum
+#b6ff51,Prickly Pear
+#604089,Purple
+#a53061,Raspberry
+#bf2e40,Red
+#afe1e6,Robin's Egg
+#a85869,Rose
+#8c372c,Rust
+#98b196,Sage
+#ff7d64,Salmon
+#e4b690,Sand
+#007341,Shamrock
+#e1ee7d,Sherbert
+#54cde3,Sky
+#5a7180,Slate Blue
+#bfb629,Slime
+#b0d169,Sour Apple
+#e35c44,Spice
+#9c8d8e,Stone
+#bc9371,Tan
+#d6642d,Tangerine
+#20c5f7,Teal
+#8e8da5,Thistle
+#ebe1cd,Toasted Marshmallow
+#ea4242,Tomato
+#93c8d4,Toothpaste
+#2b89c6,Turquoise
+#d186b1,Twilight Plum
+#f8f8f8,White
+#ecd800,Yellow

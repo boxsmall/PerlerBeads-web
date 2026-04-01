@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig({
-  base: '/PerlerBeads-web/',
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/PerlerBeads-web/' : '/',
   plugins: [react()],
   server: {
     port: 3000
@@ -11,4 +11,4 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.js'
   }
-})
+}))
