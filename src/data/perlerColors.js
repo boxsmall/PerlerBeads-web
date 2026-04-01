@@ -1,3 +1,7 @@
+import artkalPaletteText from './palettes/artkal.txt?raw'
+import nabbiPaletteText from './palettes/nabbi.txt?raw'
+import hamaPaletteText from './palettes/hama.txt?raw'
+
 // Perler 珠子标准颜色数据
 // 包含常见的 40+ 种 Perler 颜色
 
@@ -74,22 +78,42 @@ export const perlerColors = [
 // 将颜色转换为查找Map
 export const colorMap = new Map(perlerColors.map(c => [c.id, c]))
 
-const paletteBrandIds = {
-  perler: perlerColors.map(c => c.id),
-  hama: [
-    'white', 'black', 'red', 'dark-red', 'orange', 'yellow', 'green', 'dark-green',
-    'blue', 'dark-blue', 'purple', 'pink', 'brown', 'gray', 'light-gray', 'beige'
-  ],
-  artkal: [
-    'white', 'cream', 'black', 'charcoal', 'red', 'cherry-red', 'orange-red', 'orange',
-    'dark-orange', 'yellow', 'lemon-yellow', 'green', 'lime-green', 'mint', 'blue',
-    'light-blue', 'sky-blue', 'teal', 'turquoise', 'purple', 'lavender', 'pink',
-    'hot-pink', 'brown', 'tan', 'gray', 'light-gray', 'dark-gray', 'ivory', 'coral', 'navy'
-  ],
-  nabbi: [
-    'white', 'black', 'red', 'orange', 'yellow', 'green', 'blue', 'purple',
-    'pink', 'brown', 'gray', 'light-gray', 'dark-blue', 'light-blue', 'tan', 'beige'
-  ]
+function parseBuiltinPalette(text, brand) {
+  const lines = text.split(/\r?\n/)
+  const colors = []
+  const seen = new Set()
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const firstComma = trimmed.indexOf(',')
+    if (firstComma <= 0) continue
+
+    const hexRaw = trimmed.slice(0, firstComma).trim()
+    const name = trimmed.slice(firstComma + 1).trim() || `${brand.toUpperCase()}-${colors.length + 1}`
+    const hex = /^#[0-9a-fA-F]{6}$/.test(hexRaw) ? hexRaw.toUpperCase() : null
+    if (!hex || seen.has(hex)) continue
+
+    colors.push({
+      id: `${brand}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      name,
+      hex
+    })
+    seen.add(hex)
+  }
+
+  return colors
+}
+
+const hamaPalette = parseBuiltinPalette(hamaPaletteText, 'hama')
+const artkalPalette = parseBuiltinPalette(artkalPaletteText, 'artkal')
+const nabbiPalette = parseBuiltinPalette(nabbiPaletteText, 'nabbi')
+
+const paletteBrandMap = {
+  perler: perlerColors,
+  hama: hamaPalette,
+  artkal: artkalPalette,
+  nabbi: nabbiPalette
 }
 
 export const paletteBrands = [
@@ -100,9 +124,7 @@ export const paletteBrands = [
 ]
 
 export function getPaletteColors(brand = 'perler') {
-  const ids = paletteBrandIds[brand] || paletteBrandIds.perler
-  const colors = ids.map(id => colorMap.get(id)).filter(Boolean)
-  return colors.length > 0 ? colors : perlerColors
+  return paletteBrandMap[brand] || perlerColors
 }
 
 export function hexToRgb(hex) {
