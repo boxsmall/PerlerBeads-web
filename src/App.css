@@ -185,6 +185,33 @@ body {
   background: #fff;
 }
 
+.mode-control input {
+  width: 90px;
+  padding: 8px 10px;
+  font-size: 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.palette-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.palette-actions button {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.palette-actions button:hover {
+  background: #f7f7f7;
+}
+
 .custom-size-control {
   display: flex;
   align-items: center;

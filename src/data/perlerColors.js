@@ -74,15 +74,79 @@ export const perlerColors = [
 // 将颜色转换为查找Map
 export const colorMap = new Map(perlerColors.map(c => [c.id, c]))
 
-// 根据hex值查找最接近的Perler颜色
-export function findClosestColor(targetHex) {
-  const target = hexToRgb(targetHex)
-  let minDistance = Infinity
-  let closestColor = perlerColors[0]
+const paletteBrandIds = {
+  perler: perlerColors.map(c => c.id),
+  hama: [
+    'white', 'black', 'red', 'dark-red', 'orange', 'yellow', 'green', 'dark-green',
+    'blue', 'dark-blue', 'purple', 'pink', 'brown', 'gray', 'light-gray', 'beige'
+  ],
+  artkal: [
+    'white', 'cream', 'black', 'charcoal', 'red', 'cherry-red', 'orange-red', 'orange',
+    'dark-orange', 'yellow', 'lemon-yellow', 'green', 'lime-green', 'mint', 'blue',
+    'light-blue', 'sky-blue', 'teal', 'turquoise', 'purple', 'lavender', 'pink',
+    'hot-pink', 'brown', 'tan', 'gray', 'light-gray', 'dark-gray', 'ivory', 'coral', 'navy'
+  ],
+  nabbi: [
+    'white', 'black', 'red', 'orange', 'yellow', 'green', 'blue', 'purple',
+    'pink', 'brown', 'gray', 'light-gray', 'dark-blue', 'light-blue', 'tan', 'beige'
+  ]
+}
 
-  for (const color of perlerColors) {
+export const paletteBrands = [
+  { id: 'perler', name: 'Perler' },
+  { id: 'hama', name: 'Hama' },
+  { id: 'artkal', name: 'Artkal' },
+  { id: 'nabbi', name: 'Nabbi' }
+]
+
+export function getPaletteColors(brand = 'perler') {
+  const ids = paletteBrandIds[brand] || paletteBrandIds.perler
+  const colors = ids.map(id => colorMap.get(id)).filter(Boolean)
+  return colors.length > 0 ? colors : perlerColors
+}
+
+export function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : { r: 0, g: 0, b: 0 }
+}
+
+function euclideanDistance(c1, c2) {
+  return Math.sqrt(
+    Math.pow(c1.r - c2.r, 2) +
+    Math.pow(c1.g - c2.g, 2) +
+    Math.pow(c1.b - c2.b, 2)
+  )
+}
+
+function manhattanDistance(c1, c2) {
+  return Math.abs(c1.r - c2.r) + Math.abs(c1.g - c2.g) + Math.abs(c1.b - c2.b)
+}
+
+function weightedDistance(c1, c2) {
+  return Math.sqrt(
+    Math.pow(c1.r - c2.r, 2) * 0.3 +
+    Math.pow(c1.g - c2.g, 2) * 0.59 +
+    Math.pow(c1.b - c2.b, 2) * 0.11
+  )
+}
+
+export function calculateColorDistance(c1, c2, method = 'euclidean') {
+  if (method === 'manhattan') return manhattanDistance(c1, c2)
+  if (method === 'weighted') return weightedDistance(c1, c2)
+  return euclideanDistance(c1, c2)
+}
+
+export function findClosestColorFromRgb(targetRgb, palette = perlerColors, distanceMethod = 'euclidean') {
+  let minDistance = Infinity
+  let closestColor = palette[0] || perlerColors[0]
+
+  for (const color of palette) {
     const rgb = hexToRgb(color.hex)
-    const distance = colorDistance(target, rgb)
+    const distance = calculateColorDistance(targetRgb, rgb, distanceMethod)
     if (distance < minDistance) {
       minDistance = distance
       closestColor = color
@@ -92,23 +156,9 @@ export function findClosestColor(targetHex) {
   return closestColor
 }
 
-// HEX转RGB
-function hexToRgb(hex) {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : { r: 0, g: 0, b: 0 }
-}
-
-// 计算颜色距离（欧几里得距离）
-function colorDistance(c1, c2) {
-  return Math.sqrt(
-    Math.pow(c1.r - c2.r, 2) +
-    Math.pow(c1.g - c2.g, 2) +
-    Math.pow(c1.b - c2.b, 2)
-  )
+// 根据hex值查找最接近的颜色
+export function findClosestColor(targetHex, palette = perlerColors, distanceMethod = 'euclidean') {
+  return findClosestColorFromRgb(hexToRgb(targetHex), palette, distanceMethod)
 }
 
 export default perlerColors

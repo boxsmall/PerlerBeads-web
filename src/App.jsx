@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { resizeImageToPattern, exportAsImage, getUsedColors } from './utils/imageProcessor'
-import { perlerColors, colorMap } from './data/perlerColors'
+import { colorMap, getPaletteColors, paletteBrands } from './data/perlerColors'
+import { parsePaletteText, serializePalette } from './utils/paletteIO'
 import './App.css'
 
 function App() {
@@ -19,6 +20,13 @@ function App() {
 
   // 模式选择：pixel-像素模式, edge-轮廓模式
   const [processMode, setProcessMode] = useState('pixel')
+  const [paletteBrand, setPaletteBrand] = useState('perler')
+  const [maxColors, setMaxColors] = useState(24)
+  const [ditherAlgorithm, setDitherAlgorithm] = useState('none')
+  const [distanceMethod, setDistanceMethod] = useState('euclidean')
+  const [quantizationAlgorithm, setQuantizationAlgorithm] = useState('median-cut')
+  const [lowFrequencyThreshold, setLowFrequencyThreshold] = useState(0)
+  const [customPaletteColors, setCustomPaletteColors] = useState([])
 
   // 批量编辑相关状态
   const [isSelecting, setIsSelecting] = useState(false)
@@ -34,6 +42,7 @@ function App() {
   const [containerSize, setContainerSize] = useState({ width: 400, height: 400 })
   const [imageNaturalSize, setImageNaturalSize] = useState(null)
   const imageContainerRef = useRef(null)
+  const paletteFileInputRef = useRef(null)
 
   // 处理图片上传
   const handleImageUpload = (e) => {
@@ -145,6 +154,10 @@ function App() {
   // 生成图案
   const handleGenerate = async () => {
     if (!originalImage) return
+    if (paletteBrand === 'custom' && customPaletteColors.length === 0) {
+      setError('请先导入自定义调色板')
+      return
+    }
 
     setIsProcessing(true)
     setError(null)
@@ -159,6 +172,13 @@ function App() {
         y: imagePos.y,
         scale: imageScale,
         mode: processMode,
+        paletteBrand,
+        maxColors,
+        ditherAlgorithm,
+        distanceMethod,
+        quantizationAlgorithm,
+        lowFrequencyThreshold,
+        customPalette: customPaletteColors,
         containerWidth: containerSize.width,
         containerHeight: containerSize.height
       })
@@ -313,7 +333,7 @@ function App() {
   const handleExportPNG = () => {
     if (!pattern) return
 
-    const dataUrl = exportAsImage(pattern.pixels, pattern.width, pattern.height, 15)
+    const dataUrl = exportAsImage(pattern.pixels, pattern.width, pattern.height, 15, pattern.paletteColors)
     const link = document.createElement('a')
     link.download = `perler-pattern-${pattern.width}x${pattern.height}.png`
     link.href = dataUrl
@@ -341,7 +361,7 @@ function App() {
     const maxPatternWidth = 180
     const maxPatternHeight = 180
     const cellSize = Math.min(maxPatternWidth / pattern.width, maxPatternHeight / pattern.height)
-    const colors = getUsedColors(pattern.pixels)
+    const colors = getUsedColors(pattern.pixels, pattern.paletteColors)
 
     for (let y = 0; y < pattern.height; y++) {
       for (let x = 0; x < pattern.width; x++) {
@@ -349,7 +369,7 @@ function App() {
         const colorId = pattern.pixels[index]
 
         if (colorId) {
-          const color = colorMap.get(colorId)
+          const color = patternPaletteMap.get(colorId)
           if (color) {
             doc.setFillColor(color.hex)
             doc.setDrawColor(200, 200, 200)
@@ -423,6 +443,42 @@ function App() {
     setImageScale(1)
   }
 
+  const handleImportPalette = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = String(event.target?.result || '')
+      const parsed = parsePaletteText(text)
+      if (parsed.length === 0) {
+        setError('调色板格式无效，请使用 #HEX,名称 的每行格式')
+        return
+      }
+      setCustomPaletteColors(parsed)
+      setPaletteBrand('custom')
+      setError(null)
+    }
+    reader.readAsText(file, 'utf-8')
+    e.target.value = ''
+  }
+
+  const handleExportPalette = () => {
+    const source = (paletteBrand === 'custom' && customPaletteColors.length > 0)
+      ? customPaletteColors
+      : getPaletteColors(paletteBrand)
+    if (!source.length) return
+
+    const content = serializePalette(source)
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `palette-${paletteBrand}.txt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const fitScale = imageNaturalSize
     ? Math.min(
       containerSize.width / imageNaturalSize.width,
@@ -431,6 +487,13 @@ function App() {
     : 1
   const basePreviewWidth = imageNaturalSize ? imageNaturalSize.width * fitScale : containerSize.width
   const basePreviewHeight = imageNaturalSize ? imageNaturalSize.height * fitScale : containerSize.height
+  const activePaletteColors = (paletteBrand === 'custom' && customPaletteColors.length > 0)
+    ? customPaletteColors
+    : getPaletteColors(paletteBrand)
+  const patternPaletteMap = new Map([
+    ...colorMap.entries(),
+    ...((pattern?.paletteColors || []).map(c => [c.id, c]))
+  ])
 
   return (
     <div className="app">
@@ -566,6 +629,85 @@ function App() {
                 </select>
               </div>
 
+              <div className="mode-control">
+                <label>调色板品牌：</label>
+                <select value={paletteBrand} onChange={(e) => setPaletteBrand(e.target.value)}>
+                  {paletteBrands.map((brand) => (
+                    <option key={brand.id} value={brand.id}>{brand.name}</option>
+                  ))}
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+
+              <div className="mode-control">
+                <label>调色板文件：</label>
+                <div className="palette-actions">
+                  <button type="button" onClick={() => paletteFileInputRef.current?.click()}>
+                    导入 txt/csv
+                  </button>
+                  <button type="button" onClick={handleExportPalette}>
+                    导出当前调色板
+                  </button>
+                </div>
+                <input
+                  ref={paletteFileInputRef}
+                  type="file"
+                  accept=".txt,.csv,text/plain"
+                  hidden
+                  onChange={handleImportPalette}
+                />
+              </div>
+
+              <div className="mode-control">
+                <label>颜色数量：</label>
+                <input
+                  type="number"
+                  min="2"
+                  max="64"
+                  value={maxColors}
+                  onChange={(e) => setMaxColors(Math.max(2, Math.min(64, Number(e.target.value) || 2)))}
+                />
+              </div>
+
+              <div className="mode-control">
+                <label>量化算法：</label>
+                <select value={quantizationAlgorithm} onChange={(e) => setQuantizationAlgorithm(e.target.value)}>
+                  <option value="none">无</option>
+                  <option value="median-cut">Median Cut</option>
+                  <option value="kmeans">K-Means</option>
+                </select>
+              </div>
+
+              <div className="mode-control">
+                <label>抖动算法：</label>
+                <select value={ditherAlgorithm} onChange={(e) => setDitherAlgorithm(e.target.value)}>
+                  <option value="none">无</option>
+                  <option value="floyd-steinberg">Floyd-Steinberg</option>
+                  <option value="atkinson">Atkinson</option>
+                  <option value="ordered">Ordered</option>
+                </select>
+              </div>
+
+              <div className="mode-control">
+                <label>颜色差异：</label>
+                <select value={distanceMethod} onChange={(e) => setDistanceMethod(e.target.value)}>
+                  <option value="euclidean">Euclidean</option>
+                  <option value="manhattan">Manhattan</option>
+                  <option value="weighted">Weighted RGB</option>
+                </select>
+              </div>
+
+              <div className="mode-control">
+                <label>低频色替换阈值（%）：</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  value={lowFrequencyThreshold}
+                  onChange={(e) => setLowFrequencyThreshold(Math.max(0, Math.min(20, Number(e.target.value) || 0)))}
+                />
+              </div>
+
               {error && <div className="error-message">{error}</div>}
 
               <button
@@ -628,7 +770,7 @@ function App() {
                   onMouseLeave={handleSelectionEnd}
                 >
                   {pattern.pixels.map((colorId, index) => {
-                    const color = colorId ? colorMap.get(colorId) : null
+                    const color = colorId ? patternPaletteMap.get(colorId) : null
                     const isSelected = selectedPixel === index || selectedPixels.includes(index)
                     const isInSelectionRange = isSelecting && selectionStart !== null && selectionEnd !== null && isInRange(index)
                     return (
@@ -647,7 +789,7 @@ function App() {
               <div className="color-legend">
                 <h3>使用的颜色</h3>
                 <div className="color-list">
-                  {getUsedColors(pattern.pixels).map((item) => (
+                  {getUsedColors(pattern.pixels, pattern.paletteColors).map((item) => (
                     <div key={item.color.id} className="color-item">
                       <div
                         className="color-swatch"
@@ -675,7 +817,7 @@ function App() {
                 <div className="color-picker" onClick={(e) => e.stopPropagation()}>
                   <h3>选择颜色</h3>
                   <div className="color-grid">
-                    {perlerColors.map((color) => (
+                    {(pattern?.paletteColors || activePaletteColors).map((color) => (
                       <button
                         key={color.id}
                         className="color-option"
