@@ -288,7 +288,8 @@ body {
 
 .editor-content {
   display: flex;
-  gap: 20px;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .canvas-wrapper {
@@ -354,8 +355,21 @@ body {
   height: var(--cell-size);
   border-right: 1px solid #ddd;
   border-bottom: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
   cursor: pointer;
   transition: transform 0.1s;
+}
+
+.pixel-label {
+  max-width: 100%;
+  line-height: 1;
+  font-weight: 700;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
+  user-select: none;
+  pointer-events: none;
 }
 
 .pixel:hover {
@@ -378,7 +392,7 @@ body {
 
 /* 颜色图例 */
 .color-legend {
-  width: 250px;
+  width: 100%;
   background: #fff;
   border-radius: 12px;
   padding: 20px;
@@ -402,6 +416,20 @@ body {
   gap: 10px;
 }
 
+.color-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: #f0f0f0;
+  color: #333;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .color-swatch {
   width: 24px;
   height: 24px;
@@ -412,6 +440,12 @@ body {
 .color-item span {
   font-size: 14px;
   color: #666;
+}
+
+.editor-actions .active {
+  background: #4a90d9;
+  color: #fff;
+  border-color: #4a90d9;
 }
 
 /* 导出按钮 */

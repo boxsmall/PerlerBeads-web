@@ -16,6 +16,7 @@ function App() {
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [history, setHistory] = useState([])
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [isBeadMode, setIsBeadMode] = useState(false)
 
   const [paletteBrand, setPaletteBrand] = useState('perler')
 
@@ -437,9 +438,23 @@ function App() {
     ...colorMap.entries(),
     ...((pattern?.paletteColors || []).map(c => [c.id, c]))
   ])
+  const usedColors = pattern ? getUsedColors(pattern.pixels, pattern.paletteColors) : []
+  const colorNumberMap = new Map(usedColors.map((item, index) => [item.color.id, index + 1]))
   const BOARD_SIZE = 520
-  const cellSize = pattern ? Math.max(6, Math.floor(BOARD_SIZE / Math.max(pattern.width, pattern.height))) : 16
+  const baseCellSize = pattern ? Math.max(6, Math.floor(BOARD_SIZE / Math.max(pattern.width, pattern.height))) : 16
+  const cellSize = isBeadMode ? Math.max(12, baseCellSize) : baseCellSize
+  const beadFontSize = Math.max(8, Math.min(16, Math.floor(cellSize * 0.48)))
   const boardStyle = pattern ? { '--cell-size': `${cellSize}px` } : undefined
+
+  const getContrastingTextColor = (hex) => {
+    if (!hex) return '#111'
+    const raw = hex.replace('#', '')
+    const r = parseInt(raw.slice(0, 2), 16)
+    const g = parseInt(raw.slice(2, 4), 16)
+    const b = parseInt(raw.slice(4, 6), 16)
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b
+    return luminance < 150 ? '#fff' : '#111'
+  }
 
   return (
     <div className="app">
@@ -604,6 +619,12 @@ function App() {
             <div className="editor-header">
               <span className="pattern-size">{pattern.width} x {pattern.height}</span>
               <div className="editor-actions">
+                <button
+                  className={isBeadMode ? 'active' : ''}
+                  onClick={() => setIsBeadMode(v => !v)}
+                >
+                  {isBeadMode ? '关闭拼豆模式' : '拼豆模式'}
+                </button>
                 <button onClick={handleUndo} disabled={historyIndex <= 0}>撤销</button>
                 <button onClick={handleRedo} disabled={historyIndex >= history.length - 1}>重做</button>
                 <button onClick={clearSelection} disabled={selectedPixels.length === 0}>清除选择</button>
@@ -668,6 +689,7 @@ function App() {
                   >
                     {pattern.pixels.map((colorId, index) => {
                       const color = colorId ? patternPaletteMap.get(colorId) : null
+                      const colorNumber = colorId ? colorNumberMap.get(colorId) : null
                       const isSelected = selectedPixel === index || selectedPixels.includes(index)
                       const isInSelectionRange = isSelecting && selectionStart !== null && selectionEnd !== null && isInRange(index)
                       return (
@@ -677,7 +699,19 @@ function App() {
                           style={{
                             backgroundColor: color?.hex || '#f0f0f0'
                           }}
-                        />
+                        >
+                          {isBeadMode && colorNumber && (
+                            <span
+                              className="pixel-label"
+                              style={{
+                                fontSize: `${beadFontSize}px`,
+                                color: getContrastingTextColor(color?.hex || '#f0f0f0')
+                              }}
+                            >
+                              {colorNumber}
+                            </span>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
@@ -687,8 +721,9 @@ function App() {
               <div className="color-legend">
                 <h3>使用的颜色</h3>
                 <div className="color-list">
-                  {getUsedColors(pattern.pixels, pattern.paletteColors).map((item) => (
+                  {usedColors.map((item, index) => (
                     <div key={item.color.id} className="color-item">
+                      <span className="color-number">{index + 1}</span>
                       <div
                         className="color-swatch"
                         style={{ backgroundColor: item.color.hex }}

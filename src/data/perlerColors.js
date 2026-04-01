@@ -15,13 +15,17 @@ function parseBuiltinPalette(text, brand) {
     if (firstComma <= 0) continue
 
     const hexRaw = trimmed.slice(0, firstComma).trim()
-    const name = trimmed.slice(firstComma + 1).trim() || `${brand.toUpperCase()}-${colors.length + 1}`
+    const label = trimmed.slice(firstComma + 1).trim() || `${brand.toUpperCase()}-${colors.length + 1}`
+    const codeMatch = label.match(/\b([A-Za-z]+\d+)\b/)
+    const code = codeMatch ? codeMatch[1].toUpperCase() : null
+    const name = label
     const hex = /^#[0-9a-fA-F]{6}$/.test(hexRaw) ? hexRaw.toUpperCase() : null
     if (!hex || seen.has(hex)) continue
 
     colors.push({
       id: `${brand}-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
       name,
+      code,
       hex
     })
     seen.add(hex)
